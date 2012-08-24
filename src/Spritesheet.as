@@ -15,7 +15,7 @@ package  {
 		private var insertionTree:Array;
 		private var insertedImagesMap:Array;
 		private var framesDict:Dictionary;
-		private var _hashing:Boolean = false;
+		private var _hashing:Boolean = true;
 		
 		public function Spritesheet() {
 			insertionTree = new Array();
@@ -23,9 +23,10 @@ package  {
 			framesDict = new Dictionary;
 		}
 		
-		public function generate(frames:Vector.<Object>):Object {
+		public function generate(frames:Vector.<SpritesheetPart>):Object {
+			generateFramesHashes(frames)
 			var size:Point = findSize(frames);
-			var sortedFrames:Vector.<Object> = frames.concat().sort(compareSizes);
+			var sortedFrames:Vector.<SpritesheetPart> = frames.concat().sort(compareSizes);
 			
 			var spriteSheet:BitmapData = new BitmapData(size.x, size.y, true, 0);
 			insertionTree.push(spriteSheet.rect);
@@ -63,13 +64,13 @@ package  {
 			return {"bitmapData": spriteSheet, "animation": anim};
 		}
 		
-		private function generateFramesHashes(frames:Vector.<Object>):void {
+		private function generateFramesHashes(frames:Vector.<SpritesheetPart>):void {
 			var len:int = frames.length;
 			var i:int;
 			for (i = 0; i < len; ++i) {
 				var frame:Object = frames[i];
-				var frameRect:Rectangle = new Rectangle(0, 0, frame.bitmapData.width, frame.bitmapData.height);
-				frame.hash = MD5.hashBytes(frame.bitmapData.getPixels(frameRect));
+				var frameRect:Rectangle = new Rectangle(0, 0, frame.bitmap.width, frame.bitmap.height);
+				frame.hash = MD5.hashBytes(frame.bitmap.getPixels(frameRect));
 			}
 		}
 		
@@ -115,7 +116,7 @@ package  {
 			}
 		}
 		
-		private function findSize(frames:Vector.<Object>):Point {
+		private function findSize(frames:Vector.<SpritesheetPart>):Point {
 			var maxWidth:Number = 0;
 			var maxHeight:Number = 0;
 			var spriteWidth:Number = 0;
@@ -133,11 +134,16 @@ package  {
 			
 			for (i = 0; i < len; ++i) {
 				
-				allWidth += frames[i].bitmap.width;
-				allHeight += frames[i].bitmap.height;
-				allArea += frames[i].bitmap.width * frames[i].bitmap.height;
-				++amountOfTextures;
+				if (!framesDict[frames[i].hash] || !_hashing) {
+					allWidth += frames[i].bitmap.width;
+					allHeight += frames[i].bitmap.height;
+					allArea += frames[i].bitmap.width * frames[i].bitmap.height;
+					++amountOfTextures;
 					
+					if (_hashing) {
+						framesDict[frames[i].hash] = new Array();
+					}
+				}
 				
 				if (frames[i].bitmap.width > maxWidth)
 					maxWidth = frames[i].bitmap.width;
