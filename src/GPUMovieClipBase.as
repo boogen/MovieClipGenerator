@@ -115,6 +115,7 @@ package {
 				bmp.dispose();
 				bmp = null;
 			}
+
 			
 			if (bmp) {
 				bitmapScaleX = bmp.width;
@@ -160,6 +161,7 @@ package {
 		}
 		
 		private function captureChildFrame(obj:DisplayObject, layer:int):void {
+			
 			var name:String = obj.name;
 			var track:GPUMovieClipAnimationTrack = tracks[name];
 			
@@ -185,14 +187,28 @@ package {
 					});
 				mc.gotoAndStop(i + 1);
 				mc.gotoAndStop(i);
+				if ( mc.numChildren == 16) {
+					var d1:DisplayObject = mc.getChildAt(13);	
+					var b1:Rectangle = d1.getBounds(mc);
+					
+					mc.removeChildAt(13);				
+					var d2:DisplayObject = mc.getChildAt(12);
+					var b2:Rectangle = d2.getBounds(mc);
+					(d2 as DisplayObjectContainer).addChild(d1);
+					var m:Matrix = d1.transform.matrix.clone();
+					var m1:Matrix = new Matrix(m.a, m.b, m.c, m.d, 8,  -10);
+					d1.transform.matrix = m1;
+				}				
 				
 				currentFrame = i;
 				framesChildren.push(new Vector.<GPUMovieClipBase>);
 				
 				for (var j:int = 0; j < mc.numChildren; ++j) {
 					var d:DisplayObject = mc.getChildAt(j);
-					currentChildren.push(processChild(d, i));
-					captureChildFrame(d, mc.getChildIndex(d));
+					if (d.transform.colorTransform.alphaOffset != -255) {
+						currentChildren.push(processChild(d, i));
+						captureChildFrame(d, mc.getChildIndex(d));
+					}
 				}
 				for each (var ch:GPUMovieClipBase in children) {
 					if (ch.track.length <= i) {

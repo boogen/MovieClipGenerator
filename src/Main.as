@@ -156,7 +156,7 @@ package {
 				xmlStream.writeBytes(ba);
 				xmlStream.close();	
 				//*/
-				break
+
 			}
 
 		}
