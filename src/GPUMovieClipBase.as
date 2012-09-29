@@ -12,6 +12,7 @@ package {
 	import flash.filesystem.File;
 	import flash.filesystem.FileMode;
 	import flash.filesystem.FileStream;
+	import flash.geom.ColorTransform;
 	import flash.geom.Matrix;
 	import flash.geom.Matrix3D;
 	import flash.geom.Point;
@@ -70,6 +71,11 @@ package {
 		
 		public var uvs:ByteArray;
 		
+		public static var fuckthisshit:Dictionary = new Dictionary();
+		private var offset:Point = new Point();
+		private var bounds:Rectangle;
+		private var concatenatedMatrix:Matrix;
+		
 		public function GPUMovieClipBase() {
 		}
 		
@@ -98,9 +104,23 @@ package {
 				}
 			}
 			
-			var bounds:Rectangle = obj.getBounds(obj);
-			bmp = new BitmapData(bounds.width + 1, bounds.height + 1, true, 0x00000000);
-			bmp.draw(obj, new Matrix(1, 0, 0, 1, -bounds.left, -bounds.top));
+			bounds = obj.getBounds(obj);
+			if (obj.parent.name.indexOf("head") >= 0) {
+				trace(obj.parent.name);
+				var b:Rectangle = obj.getBounds(obj.stage);
+			}
+			bmp = new BitmapData(bounds.width + 1, bounds.height + 1, true, 0x00000000);						
+			var colorTransform:ColorTransform = new ColorTransform();
+			var p:DisplayObject = obj;
+			while (p) {
+				colorTransform.concat(p.transform.colorTransform);
+				p = p.parent;
+			}
+			
+			bmp.draw(obj, new Matrix(1, 0, 0, 1, -bounds.left, -bounds.top), colorTransform);			
+			
+			offset.x = bounds.left;
+			offset.y = bounds.top;
 			
 			var empty:Boolean = true;
 			for (var i:int = 0; i < bmp.width; ++i) {
@@ -115,7 +135,6 @@ package {
 				bmp.dispose();
 				bmp = null;
 			}
-
 			
 			if (bmp) {
 				bitmapScaleX = bmp.width;
@@ -145,8 +164,17 @@ package {
 			}
 		}
 		
-		private function processChild(child:DisplayObject, frame:int):GPUMovieClipBase {
+		private function processChild(parentname:String, index:int, child:DisplayObject, frame:int):GPUMovieClipBase {
 			var name:String = child.name;
+			if (name.indexOf("instance") >= 0) {
+				if (fuckthisshit[parentname]) {
+					parentname = fuckthisshit[parentname]
+				}
+
+				name = parentname + "_child" + index.toString();
+			}
+			
+			fuckthisshit[child.name] = name;
 			
 			if (!children[name]) {
 				var gpuChild:GPUMovieClipBase = processDisplayObject(child);
@@ -163,6 +191,7 @@ package {
 		private function captureChildFrame(obj:DisplayObject, layer:int):void {
 			
 			var name:String = obj.name;
+			name = fuckthisshit[name]
 			var track:GPUMovieClipAnimationTrack = tracks[name];
 			
 			if (obj.visible == false) {
@@ -187,18 +216,22 @@ package {
 					});
 				mc.gotoAndStop(i + 1);
 				mc.gotoAndStop(i);
-				if ( mc.numChildren == 16) {
-					var d1:DisplayObject = mc.getChildAt(13);	
+				if (mc.numChildren == 16) {
+					var d1:DisplayObject = mc.getChildAt(13);
+					if (d1 is MovieClip) {
+						d1 = (d1 as MovieClip).getChildAt(0);
+					}
+					
 					var b1:Rectangle = d1.getBounds(mc);
 					
-					mc.removeChildAt(13);				
+					mc.removeChildAt(13);
 					var d2:DisplayObject = mc.getChildAt(12);
 					var b2:Rectangle = d2.getBounds(mc);
 					(d2 as DisplayObjectContainer).addChild(d1);
 					var m:Matrix = d1.transform.matrix.clone();
-					var m1:Matrix = new Matrix(m.a, m.b, m.c, m.d, 8,  -10);
+					var m1:Matrix = new Matrix(m.a, m.b, m.c, m.d, 8, -10);
 					d1.transform.matrix = m1;
-				}				
+				}
 				
 				currentFrame = i;
 				framesChildren.push(new Vector.<GPUMovieClipBase>);
@@ -206,7 +239,7 @@ package {
 				for (var j:int = 0; j < mc.numChildren; ++j) {
 					var d:DisplayObject = mc.getChildAt(j);
 					if (d.transform.colorTransform.alphaOffset != -255) {
-						currentChildren.push(processChild(d, i));
+						currentChildren.push(processChild(mc.name, j, d, i));
 						captureChildFrame(d, mc.getChildIndex(d));
 					}
 				}
@@ -224,7 +257,7 @@ package {
 			
 			for (var j:int = 0; j < spr.numChildren; ++j) {
 				var d:DisplayObject = spr.getChildAt(j);
-				currentChildren.push(processChild(d, 0));
+				currentChildren.push(processChild(spr.name, j, d, 0));
 				captureChildFrame(d, spr.getChildIndex(d));
 			}
 		}
@@ -263,43 +296,231 @@ package {
 			GPUTextureAtlasManager.endAdding();
 		}
 		
+		public function mergeDressed(partname:String):void {
+			var naked:GPUMovieClipBase;
+			var dressed:GPUMovieClipBase
+			var child:GPUMovieClipBase;
+			var nakedOffset:Point = new Point();
+			var dressedOffset:Point = new Point();
+			for each (child in children) {
+				if (child.name.indexOf(partname) >= 0 && child.name.indexOf("dressed") == -1) {
+					nakedOffset.x = tracks[child.name].matrix[0].tx;
+					nakedOffset.y = tracks[child.name].matrix[0].ty;
+					for each (var part:GPUMovieClipBase in child.children) 
+					{
+						naked = part;
+						nakedOffset.x += child.tracks[part.name].matrix[0].tx;
+						nakedOffset.y += child.tracks[part.name].matrix[0].ty;
+						break;
+					}
+				}
+			}
+			
+			for each (child in children) {
+				if (child.name.indexOf(partname + "_dressed") >= 0) {
+					dressedOffset.x = tracks[child.name].matrix[0].tx;
+					dressedOffset.y = tracks[child.name].matrix[0].ty;
+					for each (var part:GPUMovieClipBase in child.children) 
+					{
+						dressedOffset.x += child.tracks[part.name].matrix[0].tx;
+						dressedOffset.y += child.tracks[part.name].matrix[0].ty;						
+						dressed = part;
+						break;
+					}
+				}
+			}
+			
+			if (dressed) {
+				var dx:Number = dressedOffset.x - nakedOffset.x;
+				var dy:Number = dressedOffset.y - nakedOffset.y;	
+				if (dressed.bmp)
+				{
+					naked.bmp.draw(dressed.bmp, new Matrix(1, 0, 0, 1, dx, dy));
+				}
+
+				dressed.bmp = null;
+			}
+		}
+		
+		public function mergeHeadShadow():void {
+			var headOffset:Point = new Point();
+			var child:GPUMovieClipBase;
+			var part:GPUMovieClipBase;
+			var head:GPUMovieClipBase;			
+			for each (var child:GPUMovieClipBase in children) {
+				if (child.name.indexOf("head") >= 0) {
+					for each (part in child.children) {
+						if (part.name.indexOf("child0") >= 0) {
+							head = part;
+							headOffset.x = child.tracks[part.name].matrix[0].tx
+							headOffset.y = child.tracks[part.name].matrix[0].ty
+							break;
+						}
+					}
+				}
+			}
+			
+			for each (var child:GPUMovieClipBase in children) {
+				if (child.name.indexOf("head") >= 0) {
+					for each (part in child.children) {
+						if (part.name.indexOf("child1") >= 0 || part.name.indexOf("male_shadow") >= 0) {
+							for each (var shadow:GPUMovieClipBase in part.children) {
+							}
+							var fx:Number = child.tracks[part.name].matrix[0].tx + part.tracks[shadow.name].matrix[0].tx;
+							var fy:Number = child.tracks[part.name].matrix[0].ty + part.tracks[shadow.name].matrix[0].ty;
+							var dx:Number = fx - headOffset.x;
+							var dy:Number = fy - headOffset.y
+							
+							head.bmp.draw(shadow.bmp, new Matrix(1, 0, 0, 1, dx, dy));
+							shadow.bmp = null;
+							break;
+						}
+					}
+				}
+			}
+		
+		}
+		
+		public function mergeFaceInHead():void {
+			var faceOffset:Point = new Point();
+			var headOffset:Point = new Point();
+			for (var key:String in tracks) {
+				if (key.indexOf("face") >= 0) {
+					var track:GPUMovieClipAnimationTrack = tracks[key];
+					faceOffset.x = track.matrix[0].tx;
+					faceOffset.y = track.matrix[0].ty;
+				}
+				if (key.indexOf("head") >= 0) {
+					var track:GPUMovieClipAnimationTrack = tracks[key];
+					headOffset.x = track.matrix[0].tx;
+					headOffset.y = track.matrix[0].ty;
+				}
+			}
+			var child:GPUMovieClipBase;
+			var part:GPUMovieClipBase;
+			var head:GPUMovieClipBase;
+			for each (var child:GPUMovieClipBase in children) {
+				if (child.name.indexOf("head") >= 0) {
+					for each (part in child.children) {
+						if (part.name.indexOf("child0") >= 0) {
+							head = part;
+							headOffset.x += child.tracks[part.name].matrix[0].tx
+							headOffset.y += child.tracks[part.name].matrix[0].ty
+							break;
+						}
+					}
+				}
+			}
+			
+			for each (var child:GPUMovieClipBase in children) {
+				if (child.name.indexOf("face") >= 0) {
+					for each (part in child.children) {
+						if (part.name.indexOf("child0") >= 0) {
+							var partOffset:Point = part.offset.clone();
+							var p:GPUMovieClipBase = part.parent;
+							while (p) {
+								partOffset = partOffset.add(p.offset);
+								p = p.parent;
+							}
+							
+							var fx:Number = faceOffset.x + child.tracks[part.name].matrix[0].tx;
+							var fy:Number = faceOffset.y + child.tracks[part.name].matrix[0].ty
+							var dx:Number = fx - headOffset.x;
+							var dy:Number = fy - headOffset.y
+							
+							head.bmp.draw(part.bmp, new Matrix(1, 0, 0, 1, dx, dy));
+							part.bmp = null;
+							break;
+						}
+					}
+					
+					for each (part in child.children) {
+						if (part.name.indexOf("child1") >= 0 && part.bmp) {
+							var partOffset:Point = part.offset.clone();
+							var p:GPUMovieClipBase = part.parent;
+							while (p) {
+								partOffset = partOffset.add(p.offset);
+								p = p.parent;
+							}
+							
+							var fx:Number = faceOffset.x + child.tracks[part.name].matrix[0].tx;
+							var fy:Number = faceOffset.y + child.tracks[part.name].matrix[0].ty
+							var dx:Number = fx - headOffset.x;
+							var dy:Number = fy - headOffset.y
+							
+							var w:Number = head.bmp.width;
+							var h:Number = head.bmp.height;
+							var dw:Number = 0;
+							var dh:Number = 0;
+							if (fx - headOffset.x < 0) {
+								dw = Math.abs(fx - headOffset.x);
+							}
+							if (fy - headOffset.y < 0) {
+								dh = Math.abs(fy - headOffset.y);
+							}
+							var hw:Number = part.bmp.width - head.bmp.width;
+							if (hw < 0) {
+								hw = 0;
+							}
+							var hh:Number = part.bmp.height - head.bmp.height;
+							if (hh < 0) {
+								hh = 0;
+							}
+							var newbmp:BitmapData = new BitmapData(w + dw + hw, h + dh + hh, true, 0x00000000);
+							newbmp.draw(head.bmp, new Matrix(1, 0, 0, 1, dw, dh));
+							newbmp.draw(part.bmp, new Matrix(1, 0, 0, 1, 0, 0));
+							head.bmp = newbmp;
+							head.offset.x -= dw;
+							head.offset.y -= dh;
+							part.bmp = null;
+							break;
+						}
+					}
+				}
+			}
+		}
+		
 		public function flatten(assets:Vector.<SpritesheetPart>):void {
+			if (name && name.indexOf("face") >= 0) {
+				return;
+			}
 			if (bmp) {
 				var part:SpritesheetPart = new SpritesheetPart();
 				part.bitmap = bmp;
 				part.name = name;
+
+				part.offset = offset;
 				assets.push(part);
 			}
 			for each (var child:GPUMovieClipBase in children) {
 				child.flatten(assets);
 			}
-		
 		}
 		
 		public static var matrices:Dictionary = new Dictionary();
 		
 		public function writeMovieClip(parentXML:XML):void {
-			var xml:XML =  <node />;
+			var xml:XML =   <node />;
 			parentXML.appendChild(xml)
 			xml.@name = name;
-			xml.children =  <children />
+			xml.children =   <children />
 			if (framesChildren.length) {
 				for (var i:int = 0; i < framesChildren[0].length; ++i) {
 					var child:GPUMovieClipBase = framesChildren[0][i];
-					var c:XML =  <node />
+					var c:XML =   <node />					
 					c.@name = child.name;
 					xml.children.appendChild(c);
 				}
 			}
 			
-			xml.tracks =  <tracks />
+			xml.tracks =   <tracks />
 			for (var key:Object in tracks) {
 				var n:String = key as String;
-				var track:XML =  <track />
+				var track:XML =   <track />
 				track.@name = n;
 				for (var i:int = 0; i < tracks[n].matrix.length; ++i) {
 					var m:Matrix = tracks[n].matrix[i];
-					var frame:XML =  <frame />
+					var frame:XML =   <frame />
 					frame.@index = i;
 					frame.a = m.a;
 					frame.b = m.b;
@@ -307,7 +528,7 @@ package {
 					frame.d = m.d;
 					frame.tx = m.tx;
 					frame.ty = m.ty;
-					track.appendChild(frame)										
+					track.appendChild(frame)
 				}
 				xml.tracks.appendChild(track)
 			}
@@ -316,7 +537,6 @@ package {
 				child.writeMovieClip(parentXML);
 			}
 		}
-		
 		
 		private function serializeAnimation(anim:Vector.<Frame>):String {
 			var xml:String = "<spritesheet>";

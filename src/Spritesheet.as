@@ -26,6 +26,7 @@ package  {
 		public function generate(frames:Vector.<SpritesheetPart>):Object {
 			generateFramesHashes(frames)
 			var size:Point = findSize(frames);
+			size = new Point(128, 64);
 			var sortedFrames:Vector.<SpritesheetPart> = frames.concat().sort(compareSizes);
 			
 			var spriteSheet:BitmapData = new BitmapData(size.x, size.y, true, 0);
@@ -42,15 +43,21 @@ package  {
 					anim.push(new Frame(currentFrame.name, f.dimension, f.offset));
 				} else {
 					while (true) {
-						var point:Point = insert(currentFrame.bitmap.rect);
+						var rect:Rectangle = currentFrame.bitmap.rect.clone();						
+						rect.width += 2;
+						rect.height += 2;
+						var point:Point = insert(rect)						
 						
 						if (!point) {
 							spriteSheet = extendSheet(spriteSheet);
+							if (spriteSheet.width > 2000) {
+								return null;
+							}
 							continue;
 						}
 						
 						var frameRegion:Rectangle = new Rectangle(point.x, point.y, currentFrame.bitmap.width, currentFrame.bitmap.height);
-						f = new Frame(currentFrame.name, frameRegion,null);
+						f = new Frame(currentFrame.name, frameRegion, currentFrame.offset);
 						anim.push(f);
 						if (_hashing) {
 							framesDict[currentFrame.hash].push(f);
@@ -238,7 +245,7 @@ package  {
 						} else {
 							rect.right = spriteSheet.width;
 						}
-					} else if (spriteSheet.width > spriteSheet.height && rect.bottom == extendedFrom) {
+					} else if (spriteSheet.width >= spriteSheet.height && rect.bottom == extendedFrom) {
 						if (insertedImagesMap[i]) {
 							insertionTree[i] = new Array();
 							insertionTree[i].push(len, len + 1);
