@@ -2,6 +2,7 @@ package  {
 	import com.adobe.crypto.MD5;
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
+	import flash.geom.Matrix;
 	import flash.geom.Point;
 	import flash.geom.Rectangle;
 	import flash.utils.Dictionary;
@@ -25,8 +26,14 @@ package  {
 		
 		public function generate(frames:Vector.<SpritesheetPart>):Object {
 			generateFramesHashes(frames)
-			var size:Point = findSize(frames);
-			size = new Point(128, 64);
+			var size:Point =  findSize(frames);
+			var scalars:Array = new Array();
+			if (size.x <= size.y) {
+				scalars.push(2, 1, 0.5, 2, 2, 1);
+			}
+			else {
+				scalars.push(1, 2, 2, 0.5, 1, 2);
+			}
 			var sortedFrames:Vector.<SpritesheetPart> = frames.concat().sort(compareSizes);
 			
 			var spriteSheet:BitmapData = new BitmapData(size.x, size.y, true, 0);
@@ -34,6 +41,45 @@ package  {
 			
 			var anim:Vector.<Frame> = new Vector.<Frame>();
 			
+			var counter:int = 0;
+			while (!tryToFit(spriteSheet, sortedFrames, anim)) {
+				var newSpriteSheet:BitmapData;
+				if (counter % 3 == 0) {
+					newSpriteSheet = new BitmapData(scalars[0] * spriteSheet.width, scalars[1] * spriteSheet.height, true, 0);
+				}
+				else if (counter % 3 == 1) {
+					newSpriteSheet = new BitmapData(scalars[2] * spriteSheet.width, scalars[3] *  spriteSheet.height, true, 0);
+				}
+				else {
+					newSpriteSheet = new BitmapData(scalars[4] * spriteSheet.width, scalars[5] * spriteSheet.height, true, 0);
+				}
+				counter++;
+				spriteSheet.dispose();
+				spriteSheet = newSpriteSheet;
+				insertionTree = new Array();
+				insertionTree.push(spriteSheet.rect);
+				for each (var k:Array in framesDict) {
+					k.length = 0;
+				}
+				anim = new Vector.<Frame>();
+				
+				insertedImagesMap = new Array();
+				
+			}
+			
+			var resultRect:Rectangle = spriteSheet.getColorBoundsRect(0xFF000000, 0x00000000, false);
+			var m:Matrix = new Matrix(1, 0, 0, 1, resultRect.x, resultRect.y);
+
+			var newspritesheet:BitmapData = new BitmapData(getNextPowerOfTwo(resultRect.width), getNextPowerOfTwo(resultRect.height), true, 0);
+			newspritesheet.draw(spriteSheet, m);
+			
+			spriteSheet = newspritesheet;
+			
+			return {"bitmapData": spriteSheet, "animation": anim};
+		}
+		
+		private function tryToFit(spriteSheet:BitmapData, sortedFrames:Vector.<SpritesheetPart>, anim:Vector.<Frame>):Boolean 
+		{
 			for (var i:int = 0; i < sortedFrames.length; ++i) {
 				var currentFrame:Object = sortedFrames[i];
 				
@@ -43,17 +89,23 @@ package  {
 					anim.push(new Frame(currentFrame.name, f.dimension, f.offset));
 				} else {
 					while (true) {
-						var rect:Rectangle = currentFrame.bitmap.rect.clone();						
-						rect.width += 2;
-						rect.height += 2;
-						var point:Point = insert(rect)						
+						var rect:Rectangle = currentFrame.bitmap.rect.clone();
+						if (rect.width % 2 == 1) {
+							rect.width += 3;
+						}
+						else {
+							rect.width += 2;
+						}
+						if (rect.height % 2 == 1) {
+							rect.width += 2;
+						}
+						else {
+							rect.height += 2;
+						}
+						var point:Point = insert(rect);
 						
 						if (!point) {
-							spriteSheet = extendSheet(spriteSheet);
-							if (spriteSheet.width > 2000) {
-								return null;
-							}
-							continue;
+							return false;
 						}
 						
 						var frameRegion:Rectangle = new Rectangle(point.x, point.y, currentFrame.bitmap.width, currentFrame.bitmap.height);
@@ -68,8 +120,10 @@ package  {
 				}
 			}
 			
-			return {"bitmapData": spriteSheet, "animation": anim};
-		}
+			return true;
+			
+			
+		}		
 		
 		private function generateFramesHashes(frames:Vector.<SpritesheetPart>):void {
 			var len:int = frames.length;

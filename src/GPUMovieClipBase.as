@@ -71,7 +71,7 @@ package {
 		
 		public var uvs:ByteArray;
 		
-		public static var fuckthisshit:Dictionary = new Dictionary();
+		public var fuckthisshit:Dictionary = new Dictionary();
 		private var offset:Point = new Point();
 		private var bounds:Rectangle;
 		private var concatenatedMatrix:Matrix;
@@ -106,7 +106,6 @@ package {
 			
 			bounds = obj.getBounds(obj);
 			if (obj.parent.name.indexOf("head") >= 0) {
-				trace(obj.parent.name);
 				var b:Rectangle = obj.getBounds(obj.stage);
 			}
 			bmp = new BitmapData(bounds.width + 1, bounds.height + 1, true, 0x00000000);						
@@ -216,16 +215,50 @@ package {
 					});
 				mc.gotoAndStop(i + 1);
 				mc.gotoAndStop(i);
-				if (mc.numChildren == 16) {
-					var d1:DisplayObject = mc.getChildAt(13);
+				
+				
+				var hashair:Boolean = false;
+				for (var k:int = 0; k < mc.numChildren; ++k) {
+					if (mc.getChildAt(k).name.indexOf("fronthair") >= 0) {
+						hashair = true;
+						break;
+					}
+				}
+				
+				
+				if (hashair || mc.numChildren == 16) {
+					var d1:DisplayObject;
+					var j:int;
+					d1 = null;
+					for (j = 0; j < mc.numChildren; ++j) {
+						if (mc.getChildAt(j).name.indexOf("fronthair") >= 0) {
+							d1 = mc.getChildAt(j);
+							break;
+						}
+						
+					}
+					if (!d1) {
+						d1 = mc.getChildAt(13);
+					}
+					if (!d1) {
+						break;
+					}
+					var hair:DisplayObject = d1;
 					if (d1 is MovieClip) {
 						d1 = (d1 as MovieClip).getChildAt(0);
 					}
 					
 					var b1:Rectangle = d1.getBounds(mc);
 					
-					mc.removeChildAt(13);
-					var d2:DisplayObject = mc.getChildAt(12);
+					var d2:DisplayObject;
+					mc.removeChild(hair);
+					
+					for (j = 0; j < mc.numChildren; ++j) {
+						if (mc.getChildAt(j).name.indexOf("face") >= 0) {
+							d2 = mc.getChildAt(j);
+							break;
+						}
+					}					
 					var b2:Rectangle = d2.getBounds(mc);
 					(d2 as DisplayObjectContainer).addChild(d1);
 					var m:Matrix = d1.transform.matrix.clone();
@@ -335,7 +368,47 @@ package {
 				var dy:Number = dressedOffset.y - nakedOffset.y;	
 				if (dressed.bmp)
 				{
-					naked.bmp.draw(dressed.bmp, new Matrix(1, 0, 0, 1, dx, dy));
+							
+					var left_dw:Number = nakedOffset.x - dressedOffset.x;
+					var left_dh:Number = nakedOffset.y - dressedOffset.y;
+					var right_dw:Number = (dressedOffset.x + dressed.bmp.width) - (nakedOffset.x + naked.bmp.width);
+					var right_dh:Number = (dressedOffset.y + dressed.bmp.height) - (nakedOffset.y + naked.bmp.height);
+					
+					var head_x:Number = left_dw > 0 ? left_dw : 0;
+					var head_y:Number = left_dh > 0 ? left_dh : 0;
+					
+					var part_x:Number = left_dw < 0 ? -left_dw : 0;
+					var part_y:Number = left_dh < 0 ? -left_dh : 0;
+					
+					var new_width:Number = naked.bmp.width;
+					var new_height:Number = naked.bmp.height;
+					
+					if (left_dw > 0) {
+						new_width += left_dw;								
+					}
+					if (right_dw > 0) {
+						new_width += right_dw;
+					}
+					if (left_dh > 0) {
+						new_height += left_dh;
+					}
+					if (right_dh > 0) {
+						new_height += right_dh;
+					}
+					
+					var newbmp:BitmapData = new BitmapData(new_width, new_height, true, 0);
+					newbmp.draw(naked.bmp, new Matrix(1, 0, 0, 1, head_x, head_y));
+					newbmp.draw(dressed.bmp, new Matrix(1, 0, 0, 1, part_x, part_y));
+
+					naked.bmp = newbmp;
+					
+					naked.offset.x -= head_x;
+					naked.offset.y -= head_y;
+
+					part.bmp = null;				
+					
+					
+				//	naked.bmp.draw(dressed.bmp, new Matrix(1, 0, 0, 1, dx, dy));
 				}
 
 				dressed.bmp = null;
@@ -366,14 +439,16 @@ package {
 						if (part.name.indexOf("child1") >= 0 || part.name.indexOf("male_shadow") >= 0) {
 							for each (var shadow:GPUMovieClipBase in part.children) {
 							}
-							var fx:Number = child.tracks[part.name].matrix[0].tx + part.tracks[shadow.name].matrix[0].tx;
-							var fy:Number = child.tracks[part.name].matrix[0].ty + part.tracks[shadow.name].matrix[0].ty;
-							var dx:Number = fx - headOffset.x;
-							var dy:Number = fy - headOffset.y
-							
-							head.bmp.draw(shadow.bmp, new Matrix(1, 0, 0, 1, dx, dy));
-							shadow.bmp = null;
-							break;
+							if (shadow) {
+								var fx:Number = child.tracks[part.name].matrix[0].tx + part.tracks[shadow.name].matrix[0].tx;
+								var fy:Number = child.tracks[part.name].matrix[0].ty + part.tracks[shadow.name].matrix[0].ty;
+								var dx:Number = fx - headOffset.x;
+								var dy:Number = fy - headOffset.y
+								
+								head.bmp.draw(shadow.bmp, new Matrix(1, 0, 0, 1, dx, dy));
+								shadow.bmp = null;
+								break;
+							}
 						}
 					}
 				}
@@ -414,6 +489,8 @@ package {
 			
 			for each (var child:GPUMovieClipBase in children) {
 				if (child.name.indexOf("face") >= 0) {
+						
+					
 					for each (part in child.children) {
 						if (part.name.indexOf("child0") >= 0) {
 							var partOffset:Point = part.offset.clone();
@@ -425,57 +502,105 @@ package {
 							
 							var fx:Number = faceOffset.x + child.tracks[part.name].matrix[0].tx;
 							var fy:Number = faceOffset.y + child.tracks[part.name].matrix[0].ty
-							var dx:Number = fx - headOffset.x;
-							var dy:Number = fy - headOffset.y
 							
-							head.bmp.draw(part.bmp, new Matrix(1, 0, 0, 1, dx, dy));
+							var left_dw:Number = headOffset.x - fx;
+							var left_dh:Number = headOffset.y - fy;
+							var right_dw:Number = (fx + part.bmp.width) - (headOffset.x + head.bmp.width);
+							var right_dh:Number = (fx + part.bmp.height) - (headOffset.y + head.bmp.height);
+							
+							var head_x:Number = left_dw > 0 ? left_dw : 0;
+							var head_y:Number = left_dh > 0 ? left_dh : 0;
+							
+							var part_x:Number = left_dw < 0 ? -left_dw : 0;
+							var part_y:Number = left_dh < 0 ? -left_dh : 0;
+							
+							var new_width:Number = head.bmp.width;
+							var new_height:Number = head.bmp.height;
+							
+							if (left_dw > 0) {
+								new_width += left_dw;								
+							}
+							if (right_dw > 0) {
+								new_width += right_dw;
+							}
+							if (left_dh > 0) {
+								new_height += left_dh;
+							}
+							if (right_dh > 0) {
+								new_height += right_dh;
+							}
+							
+							var newbmp:BitmapData = new BitmapData(new_width, new_height, true, 0);
+							newbmp.draw(head.bmp, new Matrix(1, 0, 0, 1, head_x, head_y));
+							newbmp.draw(part.bmp, new Matrix(1, 0, 0, 1, part_x, part_y));
+
+							head.bmp = newbmp;
+							
+							headOffset.x -= head_x;
+							headOffset.y -= head_y;
+							
+							head.offset.x -= head_x;
+							head.offset.y -= head_y;
+
 							part.bmp = null;
 							break;
 						}
 					}
-					
+										
 					for each (part in child.children) {
 						if (part.name.indexOf("child1") >= 0 && part.bmp) {
 							var partOffset:Point = part.offset.clone();
 							var p:GPUMovieClipBase = part.parent;
-							while (p) {
-								partOffset = partOffset.add(p.offset);
-								p = p.parent;
-							}
 							
 							var fx:Number = faceOffset.x + child.tracks[part.name].matrix[0].tx;
-							var fy:Number = faceOffset.y + child.tracks[part.name].matrix[0].ty
-							var dx:Number = fx - headOffset.x;
-							var dy:Number = fy - headOffset.y
+							var fy:Number = faceOffset.y + child.tracks[part.name].matrix[0].ty;
 							
-							var w:Number = head.bmp.width;
-							var h:Number = head.bmp.height;
-							var dw:Number = 0;
-							var dh:Number = 0;
-							if (fx - headOffset.x < 0) {
-								dw = Math.abs(fx - headOffset.x);
+							var left_dw:Number = headOffset.x - fx;
+							var left_dh:Number = headOffset.y - fy;
+							var right_dw:Number = (fx + part.bmp.width) - (headOffset.x + head.bmp.width);
+							var right_dh:Number = (fx + part.bmp.height) - (headOffset.y + head.bmp.height);
+							
+							var head_x:Number = left_dw > 0 ? left_dw : 0;
+							var head_y:Number = left_dh > 0 ? left_dh : 0;
+							
+							var part_x:Number = left_dw < 0 ? -left_dw : 0;
+							var part_y:Number = left_dh < 0 ? -left_dh : 0;
+							
+							var new_width:Number = head.bmp.width;
+							var new_height:Number = head.bmp.height;
+							
+							if (left_dw > 0) {
+								new_width += left_dw;								
 							}
-							if (fy - headOffset.y < 0) {
-								dh = Math.abs(fy - headOffset.y);
+							if (right_dw > 0) {
+								new_width += right_dw;
 							}
-							var hw:Number = part.bmp.width - head.bmp.width;
-							if (hw < 0) {
-								hw = 0;
+							if (left_dh > 0) {
+								new_height += left_dh;
 							}
-							var hh:Number = part.bmp.height - head.bmp.height;
-							if (hh < 0) {
-								hh = 0;
+							if (right_dh > 0) {
+								new_height += right_dh;
 							}
-							var newbmp:BitmapData = new BitmapData(w + dw + hw, h + dh + hh, true, 0x00000000);
-							newbmp.draw(head.bmp, new Matrix(1, 0, 0, 1, dw, dh));
-							newbmp.draw(part.bmp, new Matrix(1, 0, 0, 1, 0, 0));
+							
+							
+							// HACK FOR GIRLS
+							/*if (head.name.indexOf("idle") == -1) {
+								new_height -= 2;
+							}*/
+							var newbmp:BitmapData = new BitmapData(new_width, new_height, true, 0);							
+							newbmp.draw(head.bmp, new Matrix(1, 0, 0, 1, head_x, head_y));
+							
+							newbmp.draw(part.bmp, new Matrix(1, 0, 0, 1, part_x, part_y));
+
 							head.bmp = newbmp;
-							head.offset.x -= dw;
-							head.offset.y -= dh;
 							part.bmp = null;
+							
+							head.offset.x -= head_x;
+							head.offset.y -= head_y;							
 							break;
 						}
 					}
+					
 				}
 			}
 		}
@@ -499,6 +624,8 @@ package {
 		
 		public static var matrices:Dictionary = new Dictionary();
 		
+		private static var parts:Array = [ "backhair", "chest", "chest_dressed", "crotch", "face", "fronthair", "head", "leftarm", "leftarm_dressed", "leftleg", "leftleg_dressed", "neck", "rightarm", "rightarm_dressed", "rightleg", "rightleg_dressed"];
+		
 		public function writeMovieClip(parentXML:XML):void {
 			var xml:XML =   <node />;
 			parentXML.appendChild(xml)
@@ -507,34 +634,68 @@ package {
 			if (framesChildren.length) {
 				for (var i:int = 0; i < framesChildren[0].length; ++i) {
 					var child:GPUMovieClipBase = framesChildren[0][i];
-					var c:XML =   <node />					
-					c.@name = child.name;
-					xml.children.appendChild(c);
+					
+					var addpart:Boolean = true
+					for (var j:int = 0; j < parts.length; ++j) {
+						if (child.name.indexOf(parts[j]) >= 0) {
+							addpart = false;
+							break;
+						}
+					}
+
+					if (addpart) {
+						var c:XML =   <node />					
+						c.@name = child.name;
+						c.@index = i;
+						xml.children.appendChild(c);
+					}
 				}
 			}
 			
 			xml.tracks =   <tracks />
 			for (var key:Object in tracks) {
 				var n:String = key as String;
-				var track:XML =   <track />
-				track.@name = n;
-				for (var i:int = 0; i < tracks[n].matrix.length; ++i) {
-					var m:Matrix = tracks[n].matrix[i];
-					var frame:XML =   <frame />
-					frame.@index = i;
-					frame.a = m.a;
-					frame.b = m.b;
-					frame.c = m.c;
-					frame.d = m.d;
-					frame.tx = m.tx;
-					frame.ty = m.ty;
-					track.appendChild(frame)
+				
+				var addpart:Boolean = true
+				for (var i:int = 0; i < parts.length; ++i) {
+					if (n.indexOf(parts[i]) >= 0) {
+						addpart = false;
+						break;
+					}
 				}
-				xml.tracks.appendChild(track)
+				
+				
+				if (addpart) {
+					var track:XML =   <track />
+					track.@name = n;
+					for (var i:int = 0; i < tracks[n].matrix.length; ++i) {
+						var m:Matrix = tracks[n].matrix[i];
+						var frame:XML =   <frame />
+						frame.@index = i;
+						frame.a = m.a;
+						frame.b = m.b;
+						frame.c = m.c;
+						frame.d = m.d;
+						frame.tx = m.tx;
+						frame.ty = m.ty;
+						track.appendChild(frame)
+					}
+					xml.tracks.appendChild(track)
+				}
 			}
 			
 			for each (child in children) {
-				child.writeMovieClip(parentXML);
+				var addpart:Boolean = true
+				for (var i:int = 0; i < parts.length; ++i) {
+					if (child.name.indexOf(parts[i]) >= 0) {
+						addpart = false;
+						break;
+					}
+				}
+				
+				if (addpart) {
+					child.writeMovieClip(parentXML);
+				}
 			}
 		}
 		

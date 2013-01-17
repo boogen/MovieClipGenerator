@@ -110,6 +110,14 @@ package {
 		private var prepper01:Class;		
 		[Embed(source="../bin/prepper_WeaponsExpert_05.swf")]
 		private var prepper05:Class;		
+		[Embed(source="../bin/prepper_set.swf")]
+		private var celebrities:Class;				
+		[Embed(source="../bin/expert_female_set.swf")]
+		private var expert_females:Class;	
+		[Embed(source="../bin/courier_set.swf")]
+		private var couriers:Class;			
+		[Embed(source="../bin/male_red_000.swf")]
+		private var male_tutor:Class;				
 		
 		private var _movieClip:MovieClip;
 		private var _sqlConnection:SQLConnection;
@@ -125,6 +133,8 @@ package {
 			
 			// entry point
 			addAsset(new male());
+		//	addAsset(new prepper04());
+			//addAsset(new courier1_walk());
 		}
 		
 		var counter:int = 0;
@@ -141,13 +151,23 @@ package {
 			info.removeEventListener(Event.COMPLETE, onComplete);
 			_movieClip = info.loader.content as MovieClip;
 			
-			_assets.push(_movieClip);
+		//	_assets.push(_movieClip);
 			initDb();
-		//	singleAsset("prepper", "_005");
-		/*	counter--;
+			//singleAsset("male_red_000");
 			
-			if (counter == 0) {
-				couriers("courier1");
+	/*		var assets:Array = ["prepper_white_005" , "prepper_white_004", "prepper_white_006", "prepper_white_007", "prepper_white_002", "prepper_red_001", "prepper_white_008", "prepper_black_012", "prepper_white_009", "prepper_white_003", "prepper_white_011", "prepper_white_010"];
+			//var assets:Array = ["prepper_black_012"];
+			for (var i:int = 0; i < assets.length; ++i) {	
+			
+				singleAsset(assets[i]);
+			}*/
+			counter--;
+			
+		/*	if (counter == 0) {
+				courierAnims("courier1");
+				courierAnims("courier2");
+				courierAnims("courier3");
+				courierAnims("courier4");
 			}*/
 		}
 		
@@ -159,10 +179,42 @@ package {
 			var sqlStatement:SQLStatement = new SQLStatement();
 			sqlStatement.sqlConnection = _sqlConnection;
 			
-			sqlStatement.text = "SELECT Animation FROM PrepperAnimation WHERE Sex = 1";
+			sqlStatement.text = "SELECT Animation FROM PrepperAnimation WHERE Sex = 1 AND Animation LIKE 'male_white_%_026'";
+			//sqlStatement.text = "SELECT FileName FROM Celebrities WHERE Sex = 0";
 			sqlStatement.addEventListener(SQLEvent.RESULT, onAnimationsLoaded);
+			//sqlStatement.addEventListener(SQLEvent.RESULT, onCelebritiesLoaded);
 			sqlStatement.execute();
 		}
+		
+		private function onCelebritiesLoaded(e:SQLEvent):void {
+			var stm:SQLStatement = e.target as SQLStatement;
+			var result:SQLResult = stm.getResult();
+			
+			var numRows:int = result.data.length;
+			var animationsMap:Dictionary = new Dictionary();
+			var category:String;
+			for (var i:int = 0; i < numRows; i++) {
+				var row:Object = result.data[i];
+				var category:String = row.FileName as String;
+				
+				var anims:Array = ["idle1" , "idle2", "jump", "walk", "wave"];
+				for (var j:int = 0; j < anims.length; ++j) {
+					
+				
+					var parts:Array = category.split("_");
+					var name:String = parts[0] + "_" + parts[1] + "_" + anims[j] + "_" + parts[2];
+					if (!animationsMap[category]) {
+						animationsMap[category] = new Vector.<String>();
+					}
+					
+					animationsMap[category].push(name);
+				}
+			
+
+			}
+			
+			generateAnimations(animationsMap);
+		}		
 		
 		private function onAnimationsLoaded(e:SQLEvent):void {
 			var stm:SQLStatement = e.target as SQLStatement;
@@ -181,29 +233,32 @@ package {
 					animationsMap[category] = new Vector.<String>();
 				}
 				
-				if (name.indexOf("jump") == -1) {
 					animationsMap[category].push(name);
-				}
+			
+
 			}
 			
 			generateAnimations(animationsMap);
 		}
 		
 		
-		private function singleAsset(name:String, category:String):void 
+		private function singleAsset(category:String):void 
 		{
 			var anims:Array = ["_walk", "_idle1", "_idle2", "_jump", "_wave"];
+		
 			
+			var parts:Array = category.split("_");		
 			var animationsMap:Dictionary = new Dictionary();
-			animationsMap[name + category] = new Vector.<String>
+			animationsMap[category] = new Vector.<String>
 			for (var i:int = 0; i < anims.length; ++i) {
-				animationsMap[name + category].push(name + anims[i] + category);
+				var name:String = parts[0] + "_" + parts[1] + anims[i] + "_" + parts[2];
+				animationsMap[category].push(name);
 			}
 			
 			generateAnimations(animationsMap);
 		}
 		
-		private function couriers(name:String):void {
+		private function courierAnims(name:String):void {
 			var anims:Array = ["_walk", "_idle1"];
 			
 			var animationsMap:Dictionary = new Dictionary();
@@ -224,7 +279,7 @@ package {
 				return;
 			}
 			var bounds:Rectangle = mc.getBounds(mc);
-			var bmp:BitmapData = new BitmapData(bounds.width + 1, bounds.height + 1, true, 0x00000000);
+			var bmp:BitmapData = new BitmapData(1 * bounds.width + 1, 1 * bounds.height + 1, true, 0x00000000);
 			bmp.draw(mc, new Matrix(1, 0, 0, 1, -1 * bounds.left, -1 * bounds.top));		
 			
 			var bArray:ByteArray = PNGEncoder.encode(bmp);
@@ -245,7 +300,9 @@ package {
 			for (var k:Object in animationsMap) {
 				category = k as String;
 				
-				generateAvatar(animationsMap[category][1]);
+				if (animationsMap[category].length > 1) {
+					generateAvatar(animationsMap[category][1]);
+				}
 				
 				var animations:Vector.<String> = animationsMap[category];
 				var assets:Vector.<SpritesheetPart> = new Vector.<SpritesheetPart>();
@@ -308,7 +365,7 @@ package {
 				var xmlFile:File = File.applicationStorageDirectory.resolvePath(category + ".xml");			   				
 				var xmlStream:FileStream = new FileStream();
 				xmlStream.open(xmlFile, FileMode.WRITE);				
-				xmlStream.writeUTFBytes(spritesheetXML);
+				xmlStream.writeUTFBytes(xml);
 				xmlStream.close();
 				/*
 				var xml:XML = <movieclip />
